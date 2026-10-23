@@ -541,7 +541,9 @@ async function boot(session) {
   $("site-title").textContent = cfg.site_title;
   document.title = cfg.site_title;
   const upd = ["trade", "rone", "stores"].map((k) => state.meta[k]?.updated).filter(Boolean).sort().pop();
-  $("updated").textContent = upd ? `마지막 갱신 ${upd} (KST) · 전국 ${cfg.regions.length}개 시군구` : "아직 수집된 데이터가 없습니다";
+  const lastTrade = Object.values(state.summary).flatMap((x) => Object.keys(x.months || {})).sort().pop();
+  $("updated").textContent = upd ? `마지막 갱신 ${upd} (KST) · 전국 ${cfg.regions.length}개 시군구`
+    : lastTrade ? `매매 자료 ${lastTrade.slice(0, 4)}.${lastTrade.slice(4)}까지 · 전국 ${cfg.regions.length}개 시군구` : "아직 수집된 데이터가 없습니다";
 
   fillPicker();
   document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => setTab(b.dataset.tab)));

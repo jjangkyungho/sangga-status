@@ -196,3 +196,5 @@ tr.hl td { background: var(--accent-soft); }
 .btn.primary:disabled { opacity: .6; }
 .login-err { color: #d03b3b; font-size: 13px; }
 .link-btn { border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; padding: 0; }
+
+[hidden] { display: none !important; }
