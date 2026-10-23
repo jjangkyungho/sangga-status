@@ -2,11 +2,17 @@
 
 공공데이터로 **전국 256개 시군구**의 상가 **매매·임대·상권** 현황을 보는 사이트입니다. 전국 지도에서 시도 → 시군구를 눌러 고르거나, 시도·시군구 드롭다운과 지역 검색으로 이동할 수 있습니다. 서버비와 도메인 비용 없이 GitHub만으로 운영합니다.
 
+- 사이트: https://jjangkyungho.github.io/sangga-status/ (로그인 필요)
+- 저장소: https://github.com/jjangkyungho/sangga-status
+
 | 구성 | 사용하는 것 | 비용 |
 |---|---|---|
-| 사이트 호스팅 | GitHub Pages (`https://아이디.github.io/저장소이름/`) | 무료 (공개 저장소) |
-| 매일 자동 수집 | GitHub Actions (매일 06:00 KST) | 무료 (공개 저장소) |
-| 데이터 | 공공데이터포털, 한국부동산원 R-ONE | 무료 (인증키 필요) |
+| 사이트 화면 | GitHub Pages (`docs/` 폴더) | 무료 (공개 저장소 — 코드만 공개) |
+| 로그인 · 데이터 보관 | Supabase `sangga-status` 프로젝트 (서울 리전): Auth + 비공개 Storage 버킷 `data` | 무료 (저장 1GB) |
+| 매일 자동 수집 | GitHub Actions (매일 06:00 KST): Supabase에서 받기 → 수집 → 바뀐 파일만 올리기 | 무료 |
+| 원천 데이터 | 공공데이터포털, 한국부동산원 R-ONE | 무료 |
+
+수집 데이터는 GitHub에 올리지 않습니다. 로그인한 사용자만 Supabase에서 받을 수 있습니다 (Storage 정책 `authenticated read data`).
 
 ## 탭 구성과 데이터 출처
 
@@ -22,53 +28,29 @@
 
 ---
 
-## 처음 설치하기 (약 30분)
+## 사용자 계정 관리 (아이디·비밀번호 부여)
 
-### 1단계. 인증키 발급 (무료)
+회원가입은 막혀 있고, 관리자가 계정을 만들어 줍니다.
 
-**① 공공데이터포털** (https://www.data.go.kr) 회원가입 후 아래 2개를 각각 "활용신청"합니다. 보통 바로 승인되지만, 키가 실제로 작동하기까지 1~2시간 걸릴 수 있습니다.
-- `국토교통부_상업업무용 부동산 매매 실거래가 자료`
-- `소상공인시장진흥공단_상가(상권)정보`
+1. https://supabase.com/dashboard → `sangga-status` 프로젝트 → **Authentication → Users → Add user → Create new user**
+2. **Email**에 `아이디@sangga.local` (예: `kim@sangga.local`), **Password**에 비밀번호 입력, **Auto Confirm User** 체크 → Create
+3. 사용자는 사이트 로그인 화면에 **아이디(`kim`)**와 비밀번호만 넣으면 됩니다. 실제 이메일 주소로 만들어도 되고, 그 경우 이메일 전체를 아이디로 입력합니다.
+- 비밀번호 변경·계정 삭제도 같은 Users 화면에서 합니다.
 
-마이페이지 → 개발계정에서 **일반 인증키(Decoding)**를 복사합니다. 두 API에 같은 키를 씁니다.
+## 저장소 Secrets (등록 완료)
 
-**② 한국부동산원 R-ONE** (https://www.reb.or.kr/r-one) → Open API → 인증키 신청 후 키를 복사합니다.
-
-### 2단계. GitHub 저장소 만들기
-
-1. https://github.com 가입 → 오른쪽 위 `+` → **New repository**
-2. 이름 예시: `sangga-status` / **Public** 선택 (Private이면 Pages가 유료입니다)
-3. 생성된 저장소에서 **uploading an existing file** 클릭 → 이 폴더의 파일과 폴더(`docs`, `scripts`, `.github`, `README.md`, `.gitignore`)를 끌어다 놓고 Commit
-   - `.github` 폴더는 탐색기에서 숨김 폴더처럼 안 보일 수 있습니다. 안 보이면 Git으로 올리는 방법(아래 참고)을 쓰세요.
-
-Git으로 올리는 경우 (이 폴더에서 실행):
-```
-git init
-git add .
-git commit -m "상가 현황 사이트"
-git branch -M main
-git remote add origin https://github.com/아이디/sangga-status.git
-git push -u origin main
-```
-
-### 3단계. 인증키 등록
-
-저장소 → **Settings → Secrets and variables → Actions → New repository secret**
-
-| Name | Secret |
+| Name | 용도 |
 |---|---|
-| `DATA_GO_KR_KEY` | 공공데이터포털 인증키 |
-| `RONE_KEY` | R-ONE 인증키 |
+| `DATA_GO_KR_KEY` | 공공데이터포털 인증키 (실거래가·상가정보, 하루 10,000회씩) |
+| `RONE_KEY` | 한국부동산원 R-ONE 인증키 |
+| `SUPABASE_URL` | Supabase 프로젝트 주소 |
+| `SUPABASE_SERVICE_KEY` | Supabase 서버용 비밀 키 (데이터 업로드용 — 사이트 코드에 넣으면 안 됨) |
 
-키는 GitHub 서버 안에서만 쓰이고 사이트에는 노출되지 않습니다.
+사이트 코드(`docs/config.json`)에는 공개용 키(publishable)만 들어 있습니다. 이 키로는 로그인 없이 데이터를 받을 수 없습니다.
 
-### 4단계. 사이트 켜기
+## 수동 실행
 
-1. **Settings → Pages** → Source: `Deploy from a branch` → Branch: `main`, 폴더 `/docs` → Save
-2. **Actions** 탭 → (처음이면 "I understand… enable" 클릭) → `데이터 자동 수집` → **Run workflow**
-3. 전국 첫 수집은 1~2시간 걸립니다 (이미 수집된 데이터를 올렸다면 다음 날부터 최근 3개월만 갱신). 끝나면 `https://아이디.github.io/sangga-status/` 에서 확인합니다.
-
-이후에는 매일 06시에 자동으로 갱신됩니다.
+저장소 **Actions → 데이터 자동 수집 → Run workflow**. 그날 매매 API 한도를 이미 썼다면 `매매 실거래가 수집 건너뛰기`를 체크합니다.
 
 ---
 
@@ -84,25 +66,30 @@ git push -u origin main
 
 - **Actions 실행 기록에 오류가 있을 때**: 실행 기록 → 각 단계 로그를 확인합니다. `SERVICE_KEY_IS_NOT_REGISTERED`는 키 승인 대기 중이라는 뜻이니 1~2시간 뒤 다시 실행하세요.
 - **GitHub 서버에서 공공 API 접속이 막힐 때** (해외 IP 차단): 이 PC에서 수집해서 올리는 방식으로 바꿉니다.
-  1. 이 폴더에 `keys.bat` 파일을 만들고 아래처럼 키를 적습니다 (이 파일은 업로드되지 않습니다).
+  1. 이 폴더의 `keys.bat`(업로드되지 않음)에 키를 적습니다. Supabase 서버용 비밀 키는 대시보드 → Project Settings → API Keys 에서 복사해 직접 넣으세요.
      ```
      set DATA_GO_KR_KEY=공공데이터포털키
      set RONE_KEY=R-ONE키
+     set SUPABASE_URL=https://zhtgfmdoxvwmkoqqwlgj.supabase.co
+     set SUPABASE_SERVICE_KEY=서버용비밀키
      ```
   2. `run_local.bat` 실행. Windows 작업 스케줄러에 매일 실행으로 등록하면 자동화됩니다.
-- **R-ONE 통계표**: 스크립트가 통계표 이름에 '상가/오피스'와 '임대료/공실률/임대가격지수/전환율'이 들어간 분기 통계를 자동으로 찾습니다. 원하는 표가 빠지면 `scripts/fetch_rone.py`의 `SUBJECT`, `MEASURE`를 고치세요.
+- **R-ONE 통계표**: '임대동향 지역별 {지표}({기간})_{유형}' 이름의 분기 통계표를 찾아 지표×유형별로 기간을 이어 붙입니다. 표 이름 체계가 바뀌면 `scripts/fetch_rone.py`의 `NAME_RE`, `METRICS`, `TYPES`를 고치세요.
+- **Supabase 무료 프로젝트 일시정지**: 7일간 활동이 없으면 일시정지될 수 있습니다. 매일 자동 수집이 접속하므로 보통은 유지되며, 정지되면 대시보드에서 Restore 하면 됩니다.
 
 ## 폴더 구조
 
 ```
 docs/                사이트 (GitHub Pages가 이 폴더를 공개)
   index.html, app.js, style.css
-  config.json        지역·링크 설정
-  data/              수집된 데이터 (Actions가 자동 커밋)
+  config.json        지역·링크·Supabase 공개 설정
+  geo/               전국 시도·시군구 경계 (지도)
+  data/              수집 데이터 작업 폴더 (GitHub 업로드 안 함 → Supabase)
 scripts/             수집 스크립트 (Python 표준 라이브러리만 사용)
   fetch_trade.py     ① 매매 실거래가
   fetch_rone.py      ② 임대 통계
   fetch_stores.py    ③ 상권 점포 현황
+  supabase_sync.py   Supabase 버킷과 데이터 주고받기
 .github/workflows/update-data.yml   자동 수집 일정
 run_local.bat        PC에서 수집할 때 쓰는 대안
 ```
