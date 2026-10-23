@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>상가 현황</title>
+<meta name="description" content="공공데이터로 보는 전국 상가 매매·임대·상권 현황">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-pin" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-trade" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4 20V10l8-6 8 6v10M9 20v-6h6v6"/></symbol>
+  <symbol id="i-rent" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4 19h16M6 19V9m4 10V5m4 14v-7m4 7V8"/></symbol>
+  <symbol id="i-store" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4 9l1.5-5h13L20 9M4 9h16v2a3 3 0 0 1-5.3 2 3 3 0 0 1-5.4 0A3 3 0 0 1 4 11V9zm1 5v6h14v-6"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<div id="login" class="login" hidden>
+  <form class="login-card" id="login-form">
+    <svg class="ico accent big"><use href="#i-lock"/></svg>
+    <h1>상가 현황</h1>
+    <p class="muted">관리자에게 받은 아이디와 비밀번호로 로그인하세요.</p>
+    <label>아이디<input id="login-id" autocomplete="username" required></label>
+    <label>비밀번호<input id="login-pw" type="password" autocomplete="current-password" required></label>
+    <p class="login-err" id="login-err" hidden></p>
+    <button class="btn primary" id="login-btn" type="submit">로그인</button>
+  </form>
+</div>
+
+<div id="app" hidden>
+<header class="top">
+  <div class="wrap top-inner">
+    <div>
+      <h1 id="site-title">상가 현황</h1>
+      <p class="sub"><span id="updated">데이터 불러오는 중…</span> · <span id="who"></span> <button class="link-btn" id="logout" type="button">로그아웃</button></p>
+    </div>
+    <div class="picker">
+      <svg class="ico accent"><use href="#i-pin"/></svg>
+      <select id="sido" aria-label="시도"></select>
+      <select id="sgg" aria-label="시군구"></select>
+      <div class="search">
+        <svg class="ico"><use href="#i-search"/></svg>
+        <input type="search" id="q" placeholder="지역 검색 (예: 해운대)" autocomplete="off" aria-label="지역 검색">
+        <ul id="q-list" class="suggest" hidden></ul>
+      </div>
+    </div>
+  </div>
+  <nav class="wrap tabs" role="tablist">
+    <button role="tab" data-tab="trade" aria-selected="true"><svg class="ico"><use href="#i-trade"/></svg>매매 현황</button>
+    <button role="tab" data-tab="rent" aria-selected="false"><svg class="ico"><use href="#i-rent"/></svg>임대 통계</button>
+    <button role="tab" data-tab="market" aria-selected="false"><svg class="ico"><use href="#i-store"/></svg>임대 매물·상권</button>
+  </nav>
+</header>
+
+<main class="wrap">
+  <section class="card map-card">
+    <div class="map-side">
+      <div class="crumbs">
+        <button class="btn icon-btn" id="map-back" hidden><svg class="ico"><use href="#i-back"/></svg>전국</button>
+        <h2 id="sel-name">-</h2>
+      </div>
+      <p class="muted" id="map-hint">지도에서 시도를 누르면 확대되고, 시군구를 누르면 선택됩니다.</p>
+      <div class="mini" id="sel-mini"></div>
+      <div class="map-legend" id="map-legend"></div>
+    </div>
+    <div id="map" role="application" aria-label="시군구 선택 지도"></div>
+  </section>
+
+  <!-- ① 매매 -->
+  <section id="tab-trade" class="tab">
+    <p class="note">국토교통부 <b>상업업무용 부동산 매매 실거래가</b> (계약 후 30일 이내 신고분). 최근 1~2개월 자료는 신고가 덜 들어와 건수가 적게 보일 수 있습니다.</p>
+    <div class="filters">
+      <label>기간 <select id="t-period"><option value="3">최근 3개월</option><option value="6">최근 6개월</option><option value="12" selected>최근 12개월</option><option value="24">최근 24개월</option></select></label>
+      <label>유형 <select id="t-type"><option value="">전체</option><option value="집합">집합(구분상가)</option><option value="일반">일반(건물 전체)</option></select></label>
+      <label>용도 <select id="t-use"><option value="">전체</option></select></label>
+      <label class="check"><input type="checkbox" id="t-cancel"> 해제 거래 포함</label>
+    </div>
+    <div class="kpis" id="t-kpis"></div>
+    <div class="grid2">
+      <figure class="card"><figcaption>월별 거래 건수</figcaption><div class="chart"><canvas id="c-count"></canvas></div></figure>
+      <figure class="card"><figcaption>월별 3.3㎡당 거래가 중앙값 <span class="muted">(건물면적 기준, 만원)</span></figcaption><div class="chart"><canvas id="c-ppy"></canvas></div></figure>
+    </div>
+    <figure class="card"><figcaption><span id="cmp-title">시군구별 거래 건수 비교</span> <span class="muted" id="cmp-label"></span></figcaption><div class="chart tall"><canvas id="c-compare"></canvas></div></figure>
+    <div class="card">
+      <div class="card-head"><h2>거래 목록</h2><button class="btn" id="t-csv">CSV 내려받기</button></div>
+      <div class="table-wrap"><table id="t-table"></table></div>
+      <button class="btn more" id="t-more" hidden>더 보기</button>
+    </div>
+  </section>
+
+  <!-- ② 임대 통계 -->
+  <section id="tab-rent" class="tab" hidden>
+    <div class="note warn">
+      <b>상가 임대차는 신고 의무가 없어 '신고 자료'가 존재하지 않습니다.</b>
+      국가가 공식으로 내는 상가 임대료·공실률은 <b>한국부동산원 상업용부동산 임대동향조사</b>(분기별 표본조사)가 유일해서, 이 탭은 그 자료를 보여줍니다.
+      개별 계약이 아니라 상권별 평균값이며, 상권은 시군구가 아니라 시도 단위로 묶여 있어 선택한 지역의 <b>시도</b> 기준으로 보여줍니다.
+    </div>
+    <div class="filters">
+      <label>상가 유형 <select id="r-type"></select></label>
+      <label>지표 <select id="r-metric"></select></label>
+    </div>
+    <div class="kpis" id="r-kpis"></div>
+    <div class="grid-side">
+      <div class="card">
+        <div class="card-head"><h2>상권 선택 <span class="muted">(최대 4개)</span></h2></div>
+        <input type="search" id="r-search" placeholder="상권 이름 검색">
+        <div id="r-list" class="checklist"></div>
+      </div>
+      <figure class="card"><figcaption id="r-chart-title">추이</figcaption><div class="legend" id="r-legend"></div><div class="chart tall"><canvas id="c-rent"></canvas></div></figure>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2 id="r-rank-title">최근 분기 상권별 순위</h2></div>
+      <div class="table-wrap"><table id="r-rank"></table></div>
+    </div>
+  </section>
+
+  <!-- ③ 매물·상권 -->
+  <section id="tab-market" class="tab" hidden>
+    <div class="card">
+      <div class="card-head"><h2>지금 나와 있는 임대 매물 <span class="muted" id="m-region"></span></h2></div>
+      <p class="note small">민간 플랫폼 매물은 약관상 자동 수집이 제한돼 있어, 선택한 지역으로 바로 이동하는 링크로 제공합니다. 같은 매물이 중복 등록되거나 이미 계약된 매물이 남아 있을 수 있으니 중개사에게 꼭 확인하세요.</p>
+      <div class="links" id="m-listing"></div>
+    </div>
+    <div class="kpis" id="s-kpis"></div>
+    <div class="grid2">
+      <figure class="card"><figcaption>업종 대분류별 점포 수</figcaption><div class="chart tall"><canvas id="c-lcls"></canvas></div></figure>
+      <figure class="card"><figcaption>많은 업종 (중분류) 상위 15</figcaption><div class="chart tall"><canvas id="c-mcls"></canvas></div></figure>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>행정동별 점포 수</h2></div>
+      <div class="table-wrap"><table id="s-dong"></table></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>공공 자료 바로가기</h2></div>
+      <div class="links" id="m-public"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  출처: 국토교통부 실거래가, 한국부동산원 R-ONE, 소상공인시장진흥공단 상가(상권)정보 (공공데이터포털). 경계: 행정안전부 행정동 경계(vuski/admdongkor). 지도: © OpenStreetMap 기여자. 자료는 매일 자동 갱신됩니다.
+</footer>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
