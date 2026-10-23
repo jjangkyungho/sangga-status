@@ -1,0 +1,37 @@
+name: PC 수집 데이터 올리기
+
+# 국내 PC에서 받은 데이터(R-ONE 임대 통계, 초기 전체 수집분)를 seed 브랜치의 docs/data 에 커밋하면
+# 그 파일들을 Supabase 비공개 버킷에 올린다. 비공개 저장소 sangga-collector 에서만 돈다.
+
+on:
+  push:
+    branches: [seed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-data
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    if: github.repository == 'jjangkyungho/sangga-collector'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONUNBUFFERED: "1"
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: seed
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Supabase 로 올리기
+        run: python scripts/supabase_sync.py push
