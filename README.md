@@ -3,13 +3,15 @@
 공공데이터로 **전국 256개 시군구**의 상가 **매매·임대·상권** 현황을 보는 사이트입니다. 전국 지도에서 시도 → 시군구를 눌러 고르거나, 시도·시군구 드롭다운과 지역 검색으로 이동할 수 있습니다. 서버비와 도메인 비용 없이 GitHub만으로 운영합니다.
 
 - 사이트: https://jjangkyungho.github.io/sangga-status/ (로그인 필요)
-- 저장소: https://github.com/jjangkyungho/sangga-status
+- 사이트 저장소(공개, 화면 코드): https://github.com/jjangkyungho/sangga-status
+- 수집 저장소(비공개, 자동 수집 실행): https://github.com/jjangkyungho/sangga-collector — 같은 코드를 두 저장소에 올린다 (`git push origin main` + `git push collector main`)
 
 | 구성 | 사용하는 것 | 비용 |
 |---|---|---|
 | 사이트 화면 | GitHub Pages (`docs/` 폴더) | 무료 (공개 저장소 — 코드만 공개) |
 | 로그인 · 데이터 보관 | Supabase `sangga-status` 프로젝트 (서울 리전): Auth + 비공개 Storage 버킷 `data` | 무료 (저장 1GB) |
-| 매일 자동 수집 | GitHub Actions (매일 06:00 KST): Supabase에서 받기 → 수집 → 바뀐 파일만 올리기 | 무료 |
+| 매일 자동 수집 | 비공개 저장소 `sangga-collector`의 GitHub Actions (`collect.yml`, 매일 06:00 KST): Supabase에서 받기 → 매매·점포 수집 → 바뀐 파일만 올리기 | 무료 (비공개 저장소 월 2,000분 중 하루 10~70분) |
+| 임대 통계 | 한국부동산원 R-ONE이 해외(GitHub 서버) 접속을 끊어서 **이 PC에서** `update_rone.bat`로 받음 → `seed` 브랜치 → `seed.yml`이 Supabase로 올림 | 무료 |
 | 원천 데이터 | 공공데이터포털, 한국부동산원 R-ONE | 무료 |
 
 수집 데이터는 GitHub에 올리지 않습니다. 로그인한 사용자만 Supabase에서 받을 수 있습니다 (Storage 정책 `authenticated read data`).
@@ -37,7 +39,7 @@
 3. 사용자는 사이트 로그인 화면에 **아이디(`kim`)**와 비밀번호만 넣으면 됩니다. 실제 이메일 주소로 만들어도 되고, 그 경우 이메일 전체를 아이디로 입력합니다.
 - 비밀번호 변경·계정 삭제도 같은 Users 화면에서 합니다.
 
-## 저장소 Secrets (등록 완료)
+## 수집 저장소 Secrets (sangga-collector, 등록 완료)
 
 | Name | 용도 |
 |---|---|
@@ -50,7 +52,8 @@
 
 ## 수동 실행
 
-저장소 **Actions → 데이터 자동 수집 → Run workflow**. 그날 매매 API 한도를 이미 썼다면 `매매 실거래가 수집 건너뛰기`를 체크합니다.
+- 매매·점포: `sangga-collector` 저장소 **Actions → 데이터 자동 수집 → Run workflow**. 그날 매매 API 한도를 이미 썼다면 `매매 실거래가 수집 건너뛰기`를 체크합니다.
+- 임대 통계(R-ONE, 분기 자료): 분기마다 한 번(1·4·7·10월 말쯤) 이 폴더의 `update_rone.bat`을 실행합니다. `keys.bat`에 `RONE_KEY`가 있어야 합니다.
 
 ---
 
@@ -65,7 +68,7 @@
 ## 문제가 생기면
 
 - **Actions 실행 기록에 오류가 있을 때**: 실행 기록 → 각 단계 로그를 확인합니다. `SERVICE_KEY_IS_NOT_REGISTERED`는 키 승인 대기 중이라는 뜻이니 1~2시간 뒤 다시 실행하세요.
-- **GitHub 서버에서 공공 API 접속이 막힐 때** (해외 IP 차단): 이 PC에서 수집해서 올리는 방식으로 바꿉니다.
+- **GitHub 서버에서 공공데이터포털 접속도 막힐 때** (현재는 정상, R-ONE만 차단): 이 PC에서 수집해서 올리는 방식으로 바꿉니다.
   1. 이 폴더의 `keys.bat`(업로드되지 않음)에 키를 적습니다. Supabase 서버용 비밀 키는 대시보드 → Project Settings → API Keys 에서 복사해 직접 넣으세요.
      ```
      set DATA_GO_KR_KEY=공공데이터포털키
@@ -90,6 +93,8 @@ scripts/             수집 스크립트 (Python 표준 라이브러리만 사�
   fetch_rone.py      ② 임대 통계
   fetch_stores.py    ③ 상권 점포 현황
   supabase_sync.py   Supabase 버킷과 데이터 주고받기
-.github/workflows/update-data.yml   자동 수집 일정
-run_local.bat        PC에서 수집할 때 쓰는 대안
+.github/workflows/collect.yml   매일 자동 수집 (sangga-collector 에서만 실행)
+.github/workflows/seed.yml      PC 수집분 업로드 (seed 브랜치 push 시)
+update_rone.bat      R-ONE 임대 통계 분기 갱신 (이 PC)
+run_local.bat        모든 수집을 PC에서 할 때 쓰는 대안 (Supabase 서버용 키 필요)
 ```
