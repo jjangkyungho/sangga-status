@@ -1,0 +1,61 @@
+name: 데이터 자동 수집 (국내 PC)
+
+# 한국부동산원 R-ONE 등 국내 공공 API가 해외(GitHub 서버) 접속을 끊어서,
+# 수집은 국내 PC에 설치한 self-hosted runner(라벨 sangga)에서 한다.
+# 러너는 비공개 저장소 sangga-collector 에만 연결한다 (공개 저장소에 연결하면 남의 PR 코드가 이 PC에서 돌 수 있음).
+
+on:
+  schedule:
+    - cron: "0 21 * * *"   # 매일 06:00 KST
+  workflow_dispatch:
+    inputs:
+      skip_trade:
+        description: "매매 실거래가 수집 건너뛰기 (API 하루 한도를 이미 썼을 때)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    if: github.repository == 'jjangkyungho/sangga-collector'
+    runs-on: [self-hosted, sangga]
+    timeout-minutes: 240
+    env:
+      PYTHONUTF8: "1"
+      PYTHONUNBUFFERED: "1"
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
+      RONE_KEY: ${{ secrets.RONE_KEY }}
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 이전 수집 데이터 받기 (Supabase)
+        id: pull
+        run: python scripts\supabase_sync.py pull
+
+      - name: 1. 상가 매매 실거래가
+        if: ${{ !inputs.skip_trade }}
+        continue-on-error: true
+        run: python scripts\fetch_trade.py
+
+      - name: 2. 상가 임대 통계 (한국부동산원)
+        continue-on-error: true
+        run: python scripts\fetch_rone.py
+
+      - name: 3. 상권 점포 현황
+        continue-on-error: true
+        run: python scripts\fetch_stores.py
+
+      - name: 바뀐 데이터 올리기 (Supabase)
+        if: ${{ !cancelled() && steps.pull.outcome == 'success' }}
+        run: python scripts\supabase_sync.py push
